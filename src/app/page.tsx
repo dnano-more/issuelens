@@ -1,5 +1,8 @@
 "use client";
 
+import { IssueLensLogo } from "@/components/Logo";
+
+
 import { useState } from "react";
 import { 
   Sparkles, 
@@ -141,8 +144,8 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
       <header className="border-b border-white/[0.08] bg-[#07090e]/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
-              <Sparkles className="w-4.5 h-4.5 text-white" />
+            <div className="h-9 w-9 flex items-center justify-center shadow-lg shadow-indigo-500/10">
+              <IssueLensLogo className="w-9 h-9" />
             </div>
             <div className="flex items-baseline gap-2.5">
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
