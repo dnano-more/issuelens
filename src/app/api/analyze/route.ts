@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { IssueAnalysisRequest, IssueAnalysisResponse } from "@/types/issue";
 
-// Candidate models in order of preference
 const MODEL_CANDIDATES = [
   "gemini-3.8-flash",
   "gemini-flash-latest",
@@ -10,41 +9,52 @@ const MODEL_CANDIDATES = [
   "gemini-pro-latest"
 ];
 
-function getDemoAnalysis(title: string, beginnerMode?: boolean): IssueAnalysisResponse {
+function getDemoAnalysis(title: string): IssueAnalysisResponse {
   return {
-    summary: `Analysis for "${title}": The issue points to an unhandled exception or environment/network misconfiguration that halts execution.`,
-    possibleCauses: [
-      "Missing or invalid configuration/environment variables",
-      "Service connection refused or port mismatch (ECONNREFUSED)",
-      "State synchronization failure or asynchronous promise rejection"
+    summary: `Runtime execution failure identified in "${title}". The application encountered a blocking exception during upstream service handoff or configuration hydration.`,
+    severity: "High",
+    blastRadius: "Service-wide disruption; blocking incoming client requests and dependent upstream handshakes.",
+    rootCause: "Target service listener unreachable at configured socket/port, or critical environment secret missing during runtime initialization.",
+    resolutionProtocol: [
+      "Verify target service daemon state and socket availability on the configured port.",
+      "Audit active runtime environment variables against required schema specifications.",
+      "Check network ingress/egress security policies and connection pool timeouts.",
+      "Implement resilient retry backoff with circuit breaker logic to prevent cascade crashes."
     ],
-    debuggingSteps: [
-      "Check server terminal / console output for the exact line and stack trace.",
-      "Verify all environment variables in your local .env configuration.",
-      "Ensure dependent services (database / API / auth provider) are active and listening.",
-      "Add structured console.log checkpoints before and after the failing call."
+    affectedSubsystems: [
+      "Runtime Configuration (.env / process.env)",
+      "Database / Client Connection Pool",
+      "Core Ingress / Egress Handlers"
     ],
-    areasToInvestigate: [
-      "Local configuration (.env.local)",
-      "Middleware / API Request Handlers",
-      "Network connection headers and CORS options"
-    ],
-    priority: "High",
-    suggestedNextAction: "Inspect the raw server console logs to identify the exact stack trace and failing line of code.",
-    beginnerExplanation: beginnerMode
-      ? "Think of this like trying to call a friend whose phone is turned off. Your app tried to send a message to a background service, but couldn't reach it. Start by checking if the service is running and if the address in your settings is correct!"
-      : undefined
+    immediateMitigation: "Inspect raw container/daemon logs and verify socket connectivity before triggering subsequent deployments.",
+    codePatch: {
+      language: "typescript",
+      snippet: `// Recommended Resilient Connection Guard
+const connectWithRetry = async (retries = 5, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await initializeConnection();
+    } catch (err) {
+      console.warn(\`[Connection Attempt \${i + 1}/\${retries} Failed]: Retrying in \${delay}ms...\`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Target service unreachable after maximum retry threshold.");
+};`,
+      explanation: "Wraps socket initialization in exponential retry logic to avoid instantaneous crash loops during service warm-ups."
+    },
+    isDemo: true
   };
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: IssueAnalysisRequest = await req.json();
-    const { title, description, beginnerMode } = body;
+    const { title, description, includePatch = true } = body;
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json(
-        { error: "Both title and description are required." },
+        { error: "Both issue headline and technical description/logs are required." },
         { status: 400 }
       );
     }
@@ -52,42 +62,56 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json(getDemoAnalysis(title, beginnerMode));
+      return NextResponse.json(getDemoAnalysis(title));
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const prompt = `
-You are an expert software engineer and open-source mentor assisting developers at a hackathon.
-Analyze the following GitHub issue and return a structured JSON object.
+You are a Principal Software Architect and Site Reliability Engineer (SRE).
+Conduct a rigorous, professional root-cause triage of this issue/incident.
+Do NOT use patronizing or beginner language. Deliver an authoritative, high-density technical analysis.
 
-Issue Title:
+Issue Title / Incident Headline:
 ${title}
 
-Issue Description / Logs:
+Stack Trace / Technical Logs / Context:
 ${description}
 
-Requested Output Format (strictly JSON adhering to this schema):
+Generate a strictly valid JSON response matching this schema:
 {
-  "summary": "Concise 1-2 sentence summary of what is broken",
-  "possibleCauses": ["Cause 1", "Cause 2", "Cause 3"],
-  "debuggingSteps": ["Step 1", "Step 2", "Step 3", "Step 4"],
-  "areasToInvestigate": ["File or component 1", "Configuration or service 2"],
-  "priority": "Low" | "Medium" | "High" | "Critical",
-  "suggestedNextAction": "The single most impactful immediate action the developer should take",
-  "beginnerExplanation": "A friendly, jargon-free explanation written in simple analogies for a beginner who has never seen this error before"
+  "summary": "High-density technical summary of the failure mechanism (1-2 sentences)",
+  "severity": "Low" | "Medium" | "High" | "Critical",
+  "blastRadius": "Concise assessment of impacted subsystems, user flows, and operational exposure",
+  "rootCause": "Exact deterministic diagnosis of what failed in the codebase, architecture, or environment",
+  "resolutionProtocol": [
+    "Precision step 1",
+    "Precision step 2",
+    "Precision step 3",
+    "Precision step 4"
+  ],
+  "affectedSubsystems": [
+    "Subsystem/Module 1",
+    "Configuration/File 2",
+    "Network/Service 3"
+  ],
+  "immediateMitigation": "The exact immediate runbook command, config check, or code adjustment to restore service",
+  "codePatch": {
+    "language": "typescript or relevant language",
+    "snippet": "Production-ready clean code fix or patch blueprint resolving this issue",
+    "explanation": "Technical rationale for why this patch permanently solves the vulnerability or failure"
+  }
 }
 `;
 
     let lastError: any = null;
 
-    // Try candidate models in cascade
     for (const modelName of MODEL_CANDIDATES) {
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
           generationConfig: {
             responseMimeType: "application/json",
-            temperature: 0.2,
+            temperature: 0.15,
           },
         });
 
@@ -95,27 +119,26 @@ Requested Output Format (strictly JSON adhering to this schema):
         const responseText = result.response.text();
         const parsedData: IssueAnalysisResponse = JSON.parse(responseText);
 
-        if (!beginnerMode) {
-          delete parsedData.beginnerExplanation;
+        if (!includePatch) {
+          delete parsedData.codePatch;
         }
 
         return NextResponse.json(parsedData);
       } catch (err: any) {
-        console.warn(`Model ${modelName} failed, trying next candidate:`, err.message || err);
+        console.warn(`Model ${modelName} fallback trigger:`, err.message || err);
         lastError = err;
       }
     }
 
-    // If Google API encounters rate limiting or 503 high demand during hackathon, fall back gracefully
-    console.error("All Gemini models encountered high demand or errors, serving resilient fallback:", lastError);
-    return NextResponse.json(getDemoAnalysis(title, beginnerMode));
+    console.error("All Gemini candidates failed, using fallback:", lastError);
+    return NextResponse.json(getDemoAnalysis(title));
 
   } catch (error: any) {
-    console.error("Gemini Analysis API Error:", error);
+    console.error("IssueLens Engine Error:", error);
     return NextResponse.json(
       { 
-        error: error.message || "Failed to analyze issue with Gemini API.",
-        details: "Please try again or check API key."
+        error: error.message || "Failed to execute triage intelligence.",
+        details: "Please verify GEMINI_API_KEY or connection."
       },
       { status: 500 }
     );

@@ -1,15 +1,23 @@
 export interface IssueAnalysisRequest {
   title: string;
   description: string;
-  beginnerMode?: boolean;
+  includePatch?: boolean;
+}
+
+export interface CodePatch {
+  language: string;
+  snippet: string;
+  explanation: string;
 }
 
 export interface IssueAnalysisResponse {
   summary: string;
-  possibleCauses: string[];
-  debuggingSteps: string[];
-  areasToInvestigate: string[];
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  suggestedNextAction: string;
-  beginnerExplanation?: string;
+  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  blastRadius: string;
+  rootCause: string;
+  resolutionProtocol: string[];
+  affectedSubsystems: string[];
+  immediateMitigation: string;
+  codePatch?: CodePatch;
+  isDemo?: boolean;
 }

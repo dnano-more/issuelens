@@ -4,29 +4,35 @@ import { useState } from "react";
 import { 
   Sparkles, 
   Terminal, 
-  AlertCircle, 
+  AlertTriangle, 
   CheckCircle2, 
   Copy, 
   Check, 
-  Bug, 
-  HelpCircle, 
+  ShieldAlert, 
   ArrowRight, 
   Cpu, 
   FolderGit2, 
   Zap,
-  RotateCcw
+  RotateCcw,
+  Code2,
+  Activity,
+  Layers,
+  Wrench,
+  Flame,
+  FileCode2
 } from "lucide-react";
 import { ISSUE_PRESETS, IssuePreset } from "@/data/presets";
 import { IssueAnalysisResponse } from "@/types/issue";
 
-export default function HomePage() {
+export default function IssueLensDashboard() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [beginnerMode, setBeginnerMode] = useState(true);
+  const [includePatch, setIncludePatch] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<IssueAnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedAnalysis, setCopiedAnalysis] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const handleApplyPreset = (preset: IssuePreset) => {
     setTitle(preset.title);
@@ -37,7 +43,7 @@ export default function HomePage() {
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
-      setError("Please fill in both the issue title and description.");
+      setError("Please specify both the incident title and technical context/logs.");
       return;
     }
 
@@ -49,47 +55,57 @@ export default function HomePage() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, beginnerMode }),
+        body: JSON.stringify({ title, description, includePatch }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze issue.");
+        throw new Error(data.error || "Failed to complete diagnostic analysis.");
       }
       setResult(data);
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+      setError(err.message || "An unexpected triage exception occurred.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = () => {
+  const handleCopyAnalysis = () => {
     if (!result) return;
     const textToCopy = `
-# Issue Analysis: ${title}
-Priority: ${result.priority}
+# IssueLens Diagnostic Report
+Incident: ${title}
+Severity: ${result.severity}
+Blast Radius: ${result.blastRadius}
 
 ## Summary
 ${result.summary}
 
-${result.beginnerExplanation ? `## Beginner's Guide\n${result.beginnerExplanation}\n` : ""}
-## Possible Causes
-${result.possibleCauses.map((c) => `- ${c}`).join("\n")}
+## Deterministic Root Cause
+${result.rootCause}
 
-## Debugging Steps
-${result.debuggingSteps.map((s, idx) => `${idx + 1}. ${s}`).join("\n")}
+## Immediate Mitigation
+${result.immediateMitigation}
 
-## Areas to Investigate
-${result.areasToInvestigate.map((a) => `- ${a}`).join("\n")}
+## Resolution Protocol
+${result.resolutionProtocol.map((s, idx) => `${idx + 1}. ${s}`).join("\n")}
 
-## Immediate Next Action
-${result.suggestedNextAction}
+## Affected Subsystems
+${result.affectedSubsystems.map((a) => `- ${a}`).join("\n")}
+
+${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n\`\`\`${result.codePatch.language}\n${result.codePatch.snippet}\n\`\`\`\nRationale: ${result.codePatch.explanation}` : ""}
     `.trim();
 
     navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedAnalysis(true);
+    setTimeout(() => setCopiedAnalysis(false), 2000);
+  };
+
+  const handleCopyCode = () => {
+    if (!result?.codePatch?.snippet) return;
+    navigator.clipboard.writeText(result.codePatch.snippet);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const handleReset = () => {
@@ -99,87 +115,110 @@ ${result.suggestedNextAction}
     setError(null);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const getSeverityBadge = (severity: string) => {
+    switch (severity) {
       case "Critical":
-        return "bg-rose-500/15 text-rose-400 border-rose-500/30";
+        return "bg-rose-500/10 text-rose-400 border-rose-500/30 shadow-rose-500/10";
       case "High":
-        return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+        return "bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-amber-500/10";
       case "Medium":
-        return "bg-sky-500/15 text-sky-400 border-sky-500/30";
+        return "bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-cyan-500/10";
       default:
-        return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-emerald-500/10";
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
-      {/* Header */}
-      <header className="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-5 h-5 text-white" />
+    <div className="min-h-screen flex flex-col bg-[#07090e] text-slate-100 antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
+      {/* Ambient Visual Glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-indigo-600/15 rounded-full blur-[140px]" />
+        <div className="absolute top-80 right-[-10%] w-[500px] h-[300px] bg-violet-600/10 rounded-full blur-[130px]" />
+        <div className="absolute bottom-10 left-[-10%] w-[500px] h-[300px] bg-cyan-600/10 rounded-full blur-[130px]" />
+      </div>
+
+      {/* Enterprise Header */}
+      <header className="border-b border-white/[0.08] bg-[#07090e]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
+              <Sparkles className="w-4.5 h-4.5 text-white" />
             </div>
-            <div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+            <div className="flex items-baseline gap-2.5">
+              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
                 IssueLens
               </span>
-              <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Gemini API
+              <span className="text-[11px] font-mono tracking-widest text-indigo-400 uppercase font-semibold">
+                Intelligence Engine
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400">
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-300">
-              <FolderGit2 className="w-3.5 h-3.5 text-indigo-400" />
-              Open Source
-            </span>
-            <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              MIT License
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-white/[0.08] text-xs font-mono text-slate-300">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Gemini 3.8 Flash • Online</span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-slate-300 font-medium">
+                Hacktoberfest 2026
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <div className="text-center max-w-2xl mx-auto mb-10">
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-3">
-            Understand GitHub Issues in Seconds
+      {/* Main Dashboard Canvas */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 relative z-10">
+        {/* Command Title Header */}
+        <div className="max-w-3xl mb-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-3">
+            <Activity className="w-3.5 h-3.5 text-indigo-400" />
+            Autonomous Root-Cause & Triage Protocol
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-2.5">
+            Full-Spectrum Issue & Exception Intelligence
           </h1>
-          <p className="text-sm sm:text-base text-slate-400">
-            Paste any cryptic bug, error stack trace, or GitHub issue. Powered by Google Gemini to give you a step-by-step debugging roadmap and beginner-friendly clarity.
+          <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
+            Ingest complex stack traces, distributed failures, or GitHub issues. Synthesizes deterministic root causes, mitigation runbooks, and production-ready patch blueprints in seconds.
           </p>
         </div>
 
-        {/* 1-Click Presets */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              Quick-Test Presets (1-Click Demo)
+        {/* 1-Click Telemetry Incidents (Quick Presets) */}
+        <div className="mb-7">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              Simulate Live Incidents (1-Click Evaluation)
             </span>
             {(title || description) && (
               <button
                 onClick={handleReset}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 transition"
+                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
               >
-                <RotateCcw className="w-3 h-3" /> Clear Form
+                <RotateCcw className="w-3.5 h-3.5" /> Reset Buffer
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {ISSUE_PRESETS.map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleApplyPreset(p)}
-                className="text-left p-3 rounded-xl border border-slate-800/80 bg-slate-900/50 hover:bg-slate-900 hover:border-indigo-500/40 transition group cursor-pointer"
+                className="text-left p-3.5 rounded-xl border border-white/[0.08] bg-[#0c101a]/70 hover:bg-[#111726] hover:border-indigo-500/40 transition-all duration-200 group cursor-pointer shadow-sm hover:shadow-indigo-500/5 relative overflow-hidden"
               >
-                <div className="text-[10px] font-medium text-indigo-400 mb-1">
-                  {p.category}
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-white/[0.05] text-indigo-300 border border-white/[0.06]">
+                    {p.tag}
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold ${p.severity === 'Critical' ? 'text-rose-400' : p.severity === 'High' ? 'text-amber-400' : 'text-cyan-400'}`}>
+                    {p.severity}
+                  </span>
                 </div>
                 <div className="text-xs font-semibold text-slate-200 group-hover:text-white truncate">
                   {p.name}
@@ -189,51 +228,57 @@ ${result.suggestedNextAction}
           </div>
         </div>
 
-        {/* Input Form */}
+        {/* Incident Ingestion Terminal */}
         <form onSubmit={handleAnalyze} className="mb-10">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 sm:p-6 shadow-xl backdrop-blur-sm space-y-4">
+          <div className="rounded-2xl border border-white/[0.1] bg-[#0b0f19]/80 p-5 sm:p-7 shadow-2xl backdrop-blur-xl space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Issue Title / Error Headline
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                  Incident Descriptor / Issue Headline
+                </label>
+              </div>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                className="w-full px-4 py-3 rounded-xl bg-[#06080e] border border-white/[0.08] text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Issue Description / Logs / Stack Trace
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <FileCode2 className="w-3.5 h-3.5 text-indigo-400" />
+                  Stack Trace / Telemetry Logs / Reproduction Context
+                </label>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={5}
-                placeholder="Paste the issue details, error message, or console logs here..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-sm font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                rows={6}
+                placeholder="Paste raw stack traces, terminal dumps, or GitHub issue context..."
+                className="w-full px-4 py-3 rounded-xl bg-[#06080e] border border-white/[0.08] text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition leading-relaxed"
               />
             </div>
 
-            {/* Toggle & Action */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            {/* Controls Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-white/[0.06]">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={beginnerMode}
-                  onChange={(e) => setBeginnerMode(e.target.checked)}
+                  checked={includePatch}
+                  onChange={(e) => setIncludePatch(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative"></div>
+                <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative"></div>
                 <div className="text-xs">
                   <span className="font-semibold text-slate-200">
-                    Explain Like I'm a Beginner
+                    Generate Production Patch Blueprint
                   </span>
                   <p className="text-[11px] text-slate-400">
-                    Translates technical jargon into plain-English analogies
+                    Synthesizes production-grade code fix with architectural rationale
                   </p>
                 </div>
               </label>
@@ -241,16 +286,16 @@ ${result.suggestedNextAction}
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-semibold text-sm flex items-center justify-center gap-2.5 shadow-xl shadow-indigo-500/20 ring-1 ring-white/10 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <>
                     <Cpu className="w-4 h-4 animate-spin text-white" />
-                    <span>Analyzing with Gemini...</span>
+                    <span>Synthesizing Root Cause...</span>
                   </>
                 ) : (
                   <>
-                    <span>Analyze with Gemini</span>
+                    <span>Run Deep Triage Protocol</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -259,140 +304,169 @@ ${result.suggestedNextAction}
           </div>
         </form>
 
-        {/* Error Alert */}
+        {/* Error Notification */}
         {error && (
           <div className="mb-8 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
             <div>
-              <p className="font-semibold">Analysis Error</p>
+              <p className="font-semibold">Triage Protocol Aborted</p>
               <p className="text-xs text-rose-200/80 mt-0.5">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Result Dashboard */}
+        {/* High-End Diagnostic Report Console */}
         {result && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Top Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate-800 bg-slate-900/60">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-slate-400">Severity Assessment:</span>
-                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${getPriorityColor(result.priority)}`}>
-                  {result.priority} Priority
+            {/* Top Diagnostics Header */}
+            <div className="p-4 sm:p-5 rounded-2xl border border-white/[0.08] bg-[#0c101a]/90 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                  Incident Severity:
                 </span>
+                <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${getSeverityBadge(result.severity)}`}>
+                  {result.severity} Priority
+                </span>
+                <span className="hidden sm:inline text-slate-600">•</span>
+                <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                  <ShieldAlert className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-slate-400 font-mono text-[11px]">Radius:</span>
+                  <span className="font-medium text-slate-200">{result.blastRadius}</span>
+                </div>
               </div>
+
               <button
-                onClick={handleCopy}
-                className="self-start sm:self-auto text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+                onClick={handleCopyAnalysis}
+                className="self-start sm:self-auto text-xs font-mono font-semibold px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08] flex items-center gap-2 transition cursor-pointer"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied to Clipboard!" : "Copy Full Analysis"}
+                {copiedAnalysis ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedAnalysis ? "Runbook Copied!" : "Export Runbook"}
               </button>
             </div>
 
-            {/* Beginner Explanation Card (if enabled) */}
-            {result.beginnerExplanation && (
-              <div className="p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent">
-                <div className="flex items-center gap-2 mb-2 text-amber-400 font-semibold text-sm">
-                  <HelpCircle className="w-4 h-4" />
-                  Beginner's Plain-English Analogy
+            {/* Primary Analysis Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Executive Summary */}
+              <div className="p-6 rounded-2xl border border-white/[0.08] bg-[#0b0f19]/70 backdrop-blur-md">
+                <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-indigo-400 mb-3">
+                  <Activity className="w-4 h-4" />
+                  Executive Diagnostic Summary
                 </div>
-                <p className="text-sm text-amber-100/90 leading-relaxed">
-                  {result.beginnerExplanation}
-                </p>
-              </div>
-            )}
-
-            {/* Grid of Results */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Summary */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/50">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-2.5">
-                  <Terminal className="w-4 h-4 text-indigo-400" />
-                  Issue Summary
-                </div>
-                <p className="text-sm text-slate-300 leading-relaxed">
+                <p className="text-sm text-slate-200 leading-relaxed">
                   {result.summary}
                 </p>
               </div>
 
-              {/* Immediate Next Action */}
-              <div className="p-5 rounded-2xl border border-indigo-500/30 bg-indigo-500/5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-indigo-300 mb-2.5">
+              {/* Immediate Runbook Action */}
+              <div className="p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 via-[#0b0f19]/80 to-transparent backdrop-blur-md">
+                <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-indigo-300 mb-3">
                   <Zap className="w-4 h-4 text-indigo-400" />
-                  Suggested Next Action
+                  Immediate Mitigation Runbook
                 </div>
-                <p className="text-sm text-slate-200 leading-relaxed font-medium">
-                  {result.suggestedNextAction}
+                <p className="text-sm text-slate-100 font-medium leading-relaxed">
+                  {result.immediateMitigation}
                 </p>
-              </div>
-
-              {/* Root Causes */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/50">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
-                  <Bug className="w-4 h-4 text-rose-400" />
-                  Likely Root Causes
-                </div>
-                <ul className="space-y-2">
-                  {result.possibleCauses.map((cause, i) => (
-                    <li key={i} className="text-xs sm:text-sm text-slate-300 flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-2 flex-shrink-0" />
-                      <span>{cause}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Areas to Investigate */}
-              <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/50">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
-                  <FolderGit2 className="w-4 h-4 text-sky-400" />
-                  Key Files & Areas to Investigate
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {result.areasToInvestigate.map((area, i) => (
-                    <span
-                      key={i}
-                      className="text-xs px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 font-mono text-sky-300"
-                    >
-                      {area}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
 
-            {/* Debugging Steps */}
-            <div className="p-5 sm:p-6 rounded-2xl border border-slate-800 bg-slate-900/50">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-4">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Step-by-Step Debugging Roadmap
+            {/* Deterministic Root Cause */}
+            <div className="p-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.03] backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-400 mb-3">
+                <AlertTriangle className="w-4 h-4" />
+                Deterministic Root Cause Analysis
+              </div>
+              <p className="text-sm text-amber-100/90 leading-relaxed font-mono text-xs sm:text-sm">
+                {result.rootCause}
+              </p>
+            </div>
+
+            {/* Resolution Protocol (Numbered Runbook) */}
+            <div className="p-6 sm:p-7 rounded-2xl border border-white/[0.08] bg-[#0b0f19]/70 backdrop-blur-md">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Resolution Protocol & Verification Steps
+                </div>
+                <span className="text-[11px] font-mono text-slate-500">
+                  {result.resolutionProtocol.length} Checkpoints
+                </span>
               </div>
               <div className="space-y-3">
-                {result.debuggingSteps.map((step, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-slate-950/60 border border-slate-850">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
+                {result.resolutionProtocol.map((step, idx) => (
+                  <div key={idx} className="flex items-start gap-3.5 p-3.5 rounded-xl bg-[#06080e]/80 border border-white/[0.04]">
+                    <span className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                       {idx + 1}
                     </span>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-mono">
                       {step}
                     </p>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* Affected Subsystems */}
+            <div className="p-6 rounded-2xl border border-white/[0.08] bg-[#0b0f19]/70 backdrop-blur-md">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-cyan-400 mb-3.5">
+                <Layers className="w-4 h-4" />
+                Architectural Footprint & Affected Subsystems
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {result.affectedSubsystems.map((sub, i) => (
+                  <span
+                    key={i}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-[#06080e] border border-cyan-500/20 font-mono text-cyan-300 font-medium"
+                  >
+                    {sub}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Production Code Patch Blueprint (if generated) */}
+            {result.codePatch && (
+              <div className="rounded-2xl border border-indigo-500/30 bg-[#06080e] overflow-hidden shadow-2xl">
+                <div className="px-5 py-3.5 bg-[#0c101a] border-b border-white/[0.08] flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-300">
+                    <Code2 className="w-4 h-4 text-indigo-400" />
+                    <span>Recommended Patch Blueprint ({result.codePatch.language})</span>
+                  </div>
+                  <button
+                    onClick={handleCopyCode}
+                    className="text-xs font-mono px-3 py-1 rounded bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 border border-white/[0.08] flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedCode ? "Snippet Copied" : "Copy Snippet"}
+                  </button>
+                </div>
+
+                <div className="p-5 font-mono text-xs overflow-x-auto text-indigo-200/90 leading-relaxed bg-[#05070c]">
+                  <pre>{result.codePatch.snippet}</pre>
+                </div>
+
+                {result.codePatch.explanation && (
+                  <div className="p-4 bg-[#090d16] border-t border-white/[0.06] text-xs text-slate-400 flex items-start gap-2.5">
+                    <Wrench className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <p className="leading-relaxed">
+                      <span className="text-slate-200 font-semibold">Engineering Rationale: </span>
+                      {result.codePatch.explanation}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-black/60 py-6 mt-12 text-center text-xs text-slate-500">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>
-            Built for <span className="text-slate-300 font-medium">Hacktoberfest Hack Day Navi Mumbai</span>
+      {/* Modern Footer */}
+      <footer className="border-t border-white/[0.06] bg-[#05070c] py-6 mt-16 text-xs text-slate-500 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="font-mono">
+            IssueLens Core • Hacktoberfest Hack Day Navi Mumbai
           </p>
-          <div className="flex items-center gap-4">
-            <span className="text-indigo-400">Best Use of Gemini API Track</span>
+          <div className="flex items-center gap-4 font-mono text-[11px]">
+            <span className="text-indigo-400">Gemini 3.8 Intelligence</span>
             <span>•</span>
             <span className="text-emerald-400">MIT Open Source</span>
           </div>
