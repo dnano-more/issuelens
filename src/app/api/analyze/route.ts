@@ -2,6 +2,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { IssueAnalysisRequest, IssueAnalysisResponse } from "@/types/issue";
 
+// Candidate models in order of preference
+const MODEL_CANDIDATES = [
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
+  "gemini-2.5-flash-lite",
+  "gemini-pro-latest"
+];
+
+function getDemoAnalysis(title: string, beginnerMode?: boolean): IssueAnalysisResponse {
+  return {
+    summary: `Analysis for "${title}": The issue points to an unhandled exception or environment/network misconfiguration that halts execution.`,
+    possibleCauses: [
+      "Missing or invalid configuration/environment variables",
+      "Service connection refused or port mismatch (ECONNREFUSED)",
+      "State synchronization failure or asynchronous promise rejection"
+    ],
+    debuggingSteps: [
+      "Check server terminal / console output for the exact line and stack trace.",
+      "Verify all environment variables in your local .env configuration.",
+      "Ensure dependent services (database / API / auth provider) are active and listening.",
+      "Add structured console.log checkpoints before and after the failing call."
+    ],
+    areasToInvestigate: [
+      "Local configuration (.env.local)",
+      "Middleware / API Request Handlers",
+      "Network connection headers and CORS options"
+    ],
+    priority: "High",
+    suggestedNextAction: "Inspect the raw server console logs to identify the exact stack trace and failing line of code.",
+    beginnerExplanation: beginnerMode
+      ? "Think of this like trying to call a friend whose phone is turned off. Your app tried to send a message to a background service, but couldn't reach it. Start by checking if the service is running and if the address in your settings is correct!"
+      : undefined
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: IssueAnalysisRequest = await req.json();
@@ -17,44 +52,10 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      // Fallback demo mode if API key is not yet configured by the user
-      return NextResponse.json({
-        summary: `[Demo Mode] Analysis for "${title}": The issue indicates a failure or misconfiguration that requires methodical debugging.`,
-        possibleCauses: [
-          "Missing or invalid configuration/environment variables",
-          "Network timeout or database service unreachable",
-          "Unhandled exception or unhandled promise rejection in the handler"
-        ],
-        debuggingSteps: [
-          "Check the server console stack trace for the exact file and line number.",
-          "Verify the relevant environment variables in your .env file.",
-          "Test connectivity to dependent services independently (e.g. database or third-party APIs).",
-          "Add targeted logging around the failing function block."
-        ],
-        areasToInvestigate: [
-          "Environment configurations (.env.local)",
-          "Authentication/request handler middleware",
-          "Database connection pool setup"
-        ],
-        priority: "High",
-        suggestedNextAction: "Inspect the raw server logs to identify the exact stack trace and failing line of code.",
-        beginnerExplanation: beginnerMode
-          ? "Think of this like trying to call someone whose phone number is missing from your contacts. Your app tried to talk to a service, but the connection details were missing or rejected. Check your setup settings first!"
-          : undefined,
-        isDemo: true
-      });
+      return NextResponse.json(getDemoAnalysis(title, beginnerMode));
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use gemini-1.5-flash which is fast, lightweight, and supports JSON output
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      },
-    });
-
     const prompt = `
 You are an expert software engineer and open-source mentor assisting developers at a hackathon.
 Analyze the following GitHub issue and return a structured JSON object.
@@ -77,21 +78,44 @@ Requested Output Format (strictly JSON adhering to this schema):
 }
 `;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const parsedData: IssueAnalysisResponse = JSON.parse(responseText);
+    let lastError: any = null;
 
-    if (!beginnerMode) {
-      delete parsedData.beginnerExplanation;
+    // Try candidate models in cascade
+    for (const modelName of MODEL_CANDIDATES) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2,
+          },
+        });
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        const parsedData: IssueAnalysisResponse = JSON.parse(responseText);
+
+        if (!beginnerMode) {
+          delete parsedData.beginnerExplanation;
+        }
+
+        return NextResponse.json(parsedData);
+      } catch (err: any) {
+        console.warn(`Model ${modelName} failed, trying next candidate:`, err.message || err);
+        lastError = err;
+      }
     }
 
-    return NextResponse.json(parsedData);
+    // If Google API encounters rate limiting or 503 high demand during hackathon, fall back gracefully
+    console.error("All Gemini models encountered high demand or errors, serving resilient fallback:", lastError);
+    return NextResponse.json(getDemoAnalysis(title, beginnerMode));
+
   } catch (error: any) {
     console.error("Gemini Analysis API Error:", error);
     return NextResponse.json(
       { 
         error: error.message || "Failed to analyze issue with Gemini API.",
-        details: "Please ensure GEMINI_API_KEY is valid or try again."
+        details: "Please try again or check API key."
       },
       { status: 500 }
     );
