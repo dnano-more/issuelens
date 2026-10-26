@@ -10,6 +10,26 @@ export interface CodePatch {
   explanation: string;
 }
 
+export interface GitHubIssueMetadata {
+  owner: string;
+  repo: string;
+  issueNumber: number;
+  title: string;
+  author: string;
+  authorAvatar?: string;
+  state: string;
+  labels: string[];
+  commentsCount: number;
+  htmlUrl: string;
+  createdAt: string;
+}
+
+export interface GitHubIssueImportResponse {
+  title: string;
+  description: string;
+  metadata: GitHubIssueMetadata;
+}
+
 export interface IssueAnalysisResponse {
   summary: string;
   severity: 'Low' | 'Medium' | 'High' | 'Critical';
@@ -21,3 +41,4 @@ export interface IssueAnalysisResponse {
   codePatch?: CodePatch;
   isDemo?: boolean;
 }
+

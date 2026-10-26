@@ -49,6 +49,7 @@ In fast-paced software development and open-source contribution, debugging is fr
 
 ## Core Capabilities
 
+- **Direct GitHub Issue Ingestion:** Paste any public GitHub issue URL (`https://github.com/owner/repo/issues/123` or `owner/repo#123`) to fetch title, reproduction logs, and top discussion comments via GitHub REST API.
 - **High-Velocity SRE Triage:** Deep-parses distributed stack traces and unhandled exceptions in real time.
 - **Code Patch Synthesis:** Automatically drafts targeted code patches directly in the output terminal.
 - **1-Click Live Incident Simulations:** Pre-loaded telemetry presets (*MongoDB Socket Drop*, *Next.js SSR Hydration Divergence*, *JWT Key Expiration*, *CORS Preflight Drop*) for instant judge evaluation.
@@ -60,10 +61,11 @@ In fast-paced software development and open-source contribution, debugging is fr
 ## System Architecture
 
 ```text
-[Telemetry Incident / Raw Stack Trace / GitHub Issue]
+[GitHub Issue URL / Telemetry Incident / Stack Trace]
                         |
                         v
           [IssueLens Console (Next.js 16)]
+            +-- GitHub Issue URL Importer (/api/github)
             +-- 1-Click Incident Simulation Presets
             +-- Production Patch Blueprint Toggle
                         |

@@ -1,7 +1,7 @@
 "use client";
 
 import { IssueLensLogo } from "@/components/Logo";
-
+import { GitHubImporter } from "@/components/GitHubImporter";
 
 import { useState } from "react";
 import { 
@@ -22,10 +22,11 @@ import {
   Layers,
   Wrench,
   Flame,
-  FileCode2
+  FileCode2,
+  ExternalLink
 } from "lucide-react";
 import { ISSUE_PRESETS, IssuePreset } from "@/data/presets";
-import { IssueAnalysisResponse } from "@/types/issue";
+import { IssueAnalysisResponse, GitHubIssueImportResponse, GitHubIssueMetadata } from "@/types/issue";
 
 export default function IssueLensDashboard() {
   const [title, setTitle] = useState("");
@@ -36,10 +37,20 @@ export default function IssueLensDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [copiedAnalysis, setCopiedAnalysis] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [githubMetadata, setGithubMetadata] = useState<GitHubIssueMetadata | null>(null);
+
 
   const handleApplyPreset = (preset: IssuePreset) => {
     setTitle(preset.title);
     setDescription(preset.description);
+    setGithubMetadata(null);
+    setError(null);
+  };
+
+  const handleGitHubImport = (data: GitHubIssueImportResponse) => {
+    setTitle(data.title);
+    setDescription(data.description);
+    setGithubMetadata(data.metadata);
     setError(null);
   };
 
@@ -78,7 +89,7 @@ export default function IssueLensDashboard() {
     const textToCopy = `
 # IssueLens Diagnostic Report
 Incident: ${title}
-Severity: ${result.severity}
+${githubMetadata ? `GitHub Issue: ${githubMetadata.htmlUrl}\n` : ""}Severity: ${result.severity}
 Blast Radius: ${result.blastRadius}
 
 ## Summary
@@ -114,9 +125,11 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
   const handleReset = () => {
     setTitle("");
     setDescription("");
+    setGithubMetadata(null);
     setResult(null);
     setError(null);
   };
+
 
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
@@ -231,6 +244,13 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
           </div>
         </div>
 
+        {/* GitHub Direct Issue URL Ingestion */}
+        <GitHubImporter
+          onImport={handleGitHubImport}
+          currentMetadata={githubMetadata}
+          onClearMetadata={() => setGithubMetadata(null)}
+        />
+
         {/* Incident Ingestion Terminal */}
         <form onSubmit={handleAnalyze} className="mb-10">
           <div className="rounded-2xl border border-white/[0.1] bg-[#0b0f19]/80 p-5 sm:p-7 shadow-2xl backdrop-blur-xl space-y-5">
@@ -240,6 +260,11 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
                   <Terminal className="w-3.5 h-3.5 text-indigo-400" />
                   Incident Descriptor / Issue Headline
                 </label>
+                {githubMetadata && (
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Imported from {githubMetadata.owner}/{githubMetadata.repo}#{githubMetadata.issueNumber}
+                  </span>
+                )}
               </div>
               <input
                 type="text"
@@ -249,6 +274,7 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
                 className="w-full px-4 py-3 rounded-xl bg-[#06080e] border border-white/[0.08] text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition font-mono"
               />
             </div>
+
 
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -338,13 +364,27 @@ ${result.codePatch ? `## Recommended Code Patch (${result.codePatch.language})\n
                 </div>
               </div>
 
-              <button
-                onClick={handleCopyAnalysis}
-                className="self-start sm:self-auto text-xs font-mono font-semibold px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08] flex items-center gap-2 transition cursor-pointer"
-              >
-                {copiedAnalysis ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                {copiedAnalysis ? "Runbook Copied!" : "Export Runbook"}
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+
+                {githubMetadata && (
+                  <a
+                    href={githubMetadata.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-mono font-semibold px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <span>GitHub #{githubMetadata.issueNumber}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button
+                  onClick={handleCopyAnalysis}
+                  className="text-xs font-mono font-semibold px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08] flex items-center gap-2 transition cursor-pointer"
+                >
+                  {copiedAnalysis ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedAnalysis ? "Runbook Copied!" : "Export Runbook"}
+                </button>
+              </div>
             </div>
 
             {/* Primary Analysis Grid */}
